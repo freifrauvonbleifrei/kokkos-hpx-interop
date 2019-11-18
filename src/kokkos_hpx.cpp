@@ -1,5 +1,6 @@
 #include <kokkos.hpp>
 
+// #include <hpx/hpx_init.hpp>
 #include <hpx/hpx_main.hpp>
 #include <hpx/include/compute.hpp>
 #include <hpx/include/iostreams.hpp>
@@ -10,14 +11,28 @@
 
 #include <boost/range/irange.hpp>
 
+
+template <typename Viewtype>
+void printContents(Viewtype& printView){
+  Kokkos::parallel_for("print contents",Kokkos::RangePolicy<typename Viewtype::execution_space>(0, printView.extent(0)),
+      KOKKOS_LAMBDA(int j) {
+          printf("%d, %f; ", j, printView(j));
+      });
+  Kokkos::fence();
+}
+
 // This example shows examples of calling Kokkos functions within HPX, either
 // through HPX executors or directly.
 
 // TODO: Make parallel algorithm fallback work for Kokkos executors (with all
 // backends and policies).
 
-int hpx_main(int argc, char **argv) {
+int main(int argc, char* argv[]) {
+// int hpx_main(int argc, char* argv[]) {
+// int hpx_main(boost::program_options::variables_map& arg) {
   using namespace hpx::compute::kokkos;
+  namespace kokkos = hpx::compute::kokkos;
+  using DeviceSpace = Kokkos::DefaultExecutionSpace;
 
   {
     kokkos::runtime_guard k(argc, argv);
@@ -28,9 +43,9 @@ int hpx_main(int argc, char **argv) {
     // allocated on memory space of the default device (i.e. GPU if available,
     // otherwise host).
     std::cout << "constructing views" << std::endl;
-    kokkos::View<double *> a(kokkos::ViewAllocateWithoutInitializing("a"), n);
-    kokkos::View<double *> b(kokkos::ViewAllocateWithoutInitializing("b"), n);
-    kokkos::View<double *> c(kokkos::ViewAllocateWithoutInitializing("c"), n);
+    Kokkos::View<double *> a(Kokkos::ViewAllocateWithoutInitializing("a"), n);
+    Kokkos::View<double *> b(Kokkos::ViewAllocateWithoutInitializing("b"), n);
+    Kokkos::View<double *> c(Kokkos::ViewAllocateWithoutInitializing("c"), n);
     std::cout << "done constructing views" << std::endl;
 
     // Create a Kokkos executor which forwards to Kokkos' DefaultExecutionSpace.
@@ -58,18 +73,18 @@ int hpx_main(int argc, char **argv) {
     std::cout << "for_loop spawned" << std::endl;
 
     // Can interleave normal HPX functionality with Kokkos functionality.
-    kokkos::View<double *, kokkos::HostSpace> d(kokkos::ViewAllocateWithoutInitializing("d"), n);
+    Kokkos::View<double *, Kokkos::HostSpace> d(Kokkos::ViewAllocateWithoutInitializing("d"), n);
     std::cout << "hpx for_loop on host" << std::endl;
     auto g1 = hpx::parallel::for_loop(
         hpx::parallel::execution::par(hpx::parallel::execution::task), 0, n,
-        [] HPX_HOST_DEVICE (std::size_t i) { d[i] = std::sin(double(i)); });
+        [d] HPX_HOST_DEVICE (std::size_t i) { d[i] = std::sin(double(i)); });
     std::cout << "for_loop spawned" << std::endl;
 
-    kokkos::View<double *, kokkos::DeviceSpace> e(kokkos::ViewAllocateWithoutInitializing("e"), n);
+    Kokkos::View<double *, DeviceSpace> e(Kokkos::ViewAllocateWithoutInitializing("e"), n);
     std::cout << "hpx for_loop on device" << std::endl;
     auto g2 = hpx::parallel::for_loop(
         hpx::parallel::execution::par(hpx::parallel::execution::task).on(hpx::compute::cuda::default_executor(t)), 0, n,
-        [] HPX_HOST_DEVICE (std::size_t i) { e[i] = cos::sin(double(i)); });
+        [e] HPX_HOST_DEVICE (std::size_t i) { e[i] = std::cos(double(i)); });
     std::cout << "for_loop spawned" << std::endl;
 
     std::cout << "hpx for_loop with kokkos executor" << std::endl;
@@ -82,8 +97,8 @@ int hpx_main(int argc, char **argv) {
     // CUDA device.
     double result = 0.0;
     std::cout << "kokkos reduce" << std::endl;
-    kokkos::parallel_reduce(
-        kokkos::RangePolicy<kokkos::DefaultExecutionSpace>(0, n),
+    Kokkos::parallel_reduce(
+        Kokkos::RangePolicy<Kokkos::DefaultExecutionSpace>(0, n),
         KOKKOS_LAMBDA(std::size_t i, double &update) { update += c[i]; },
         result);
 
@@ -102,8 +117,31 @@ int hpx_main(int argc, char **argv) {
 
     hpx::wait_all(f1, f2, g1, g2);
 
+    printContents(a);
+    printf("\n");
+    printf("\n");
+    printContents(b);
+    printf("\n");
+    printf("\n");
+    printContents(c);
+    printf("\n");
+    printf("\n");
+    printContents(d);
+    printf("\n");
+    printf("\n");
+    printContents(e);
+    printf("\n");
+    printf("\n");
+
     std::cout << result << std::endl;
   }
 
   return hpx::finalize();
 }
+
+// int main(int argc, char* argv[])
+// {
+//     // Initialize HPX, run hpx_main as the first HPX thread, and
+//     // wait for hpx::finalize being called.
+//     return hpx::init(argc, argv);
+// }
