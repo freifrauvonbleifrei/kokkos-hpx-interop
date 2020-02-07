@@ -40,7 +40,7 @@ std::vector<cudaStream_t> initialize_streams(std::size_t const num_streams) {
 } // namespace detail
 
 template <> Kokkos::Cuda make_execution_space<Kokkos::Cuda>() {
-  static constexpr std::size_t num_streams = 3;
+  static constexpr std::size_t num_streams = 16;
   static thread_local std::size_t current_stream = 0;
   static thread_local std::vector<cudaStream_t> streams =
       detail::initialize_streams(num_streams);
